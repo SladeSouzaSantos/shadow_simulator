@@ -5,9 +5,27 @@ on:
     branches: [ main ]
 
 jobs:
-  # 🏗️ BUILD E PUSH
+  # 🔍 JOB 1: VALIDAÇÃO (LINT)
+  lint:
+    name: Lint Code Base
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Lint Python & Configs
+        uses: github/super-linter@v5
+        env:
+          VALIDATE_ALL_CODEBASE: false
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VALIDATE_PYTHON_BLACK: true 
+          VALIDATE_YAML: true
+
+  # 🏗️ JOB 2: BUILD E PUSH
   build:
     name: Build and Push Image
+    needs: lint
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -15,6 +33,10 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      # Resolve o erro de letras maiúsculas no nome do repositório
+      - name: Lowercase Repo Name
+        run: echo "REPO_LOWER=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -35,7 +57,8 @@ jobs:
           context: .
           platforms: linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/shadow-sim-pro:latest
+          # Usa a variável tratada em minúsculas
+          tags: ghcr.io/${{ env.REPO_LOWER }}:latest
 
   # 🚀 DEPLOY REMOTO
   deploy:
@@ -58,8 +81,6 @@ jobs:
             DEST_DIR="/app/shadow-sim-pro"
             mkdir -p $DEST_DIR
             cd $DEST_DIR
-            # Aqui você garante que o nginx.conf e o docker-stack estejam no Pi
-            # Recomendo usar git pull ou scp antes, mas para simplificar:
             docker stack deploy -c docker-stack.yml shadow-sim --with-registry-auth --resolve-image always --prune
 
   # ✅ HEALTH CHECK
@@ -77,4 +98,6 @@ jobs:
         run: |
           echo "⏳ Estabilizando hardware..."
           sleep 30
-          curl -f http://100.71.249.12:8090 || exit 1
+          # Substituído o IP fixo pela variável de ambiente do GitHub
+          echo "🌐 Testando acesso em http://${{ secrets.SERVER_HOST }}:8095"
+          curl -f http://${{ secrets.SERVER_HOST }}:8095 || exit 1
