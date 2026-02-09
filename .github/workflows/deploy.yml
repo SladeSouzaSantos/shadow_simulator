@@ -34,7 +34,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Resolve o erro de letras maiúsculas no nome do repositório
       - name: Lowercase Repo Name
         run: echo "REPO_LOWER=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
@@ -57,21 +56,32 @@ jobs:
           context: .
           platforms: linux/arm64
           push: true
-          # Usa a variável tratada em minúsculas
           tags: ghcr.io/${{ env.REPO_LOWER }}:latest
 
-  # 🚀 DEPLOY REMOTO
+  # 🚀 JOB 3: DEPLOY REMOTO
   deploy:
     name: Deploy to Raspberry Pi
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Connect to Tailscale
         uses: tailscale/github-action@v2
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
-      - name: Execute Remote Deploy
+      - name: Copy Stack File to Raspberry
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-stack.yml"
+          target: "/app/shadow-sim-pro"
+
+      - name: Execute Remote Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -79,11 +89,12 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             DEST_DIR="/app/shadow-sim-pro"
-            mkdir -p $DEST_DIR
             cd $DEST_DIR
+            # Força o login para garantir acesso às imagens privadas do GHCR
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker stack deploy -c docker-stack.yml shadow-sim --with-registry-auth --resolve-image always --prune
 
-  # ✅ HEALTH CHECK
+  # ✅ JOB 4: HEALTH CHECK
   healthcheck:
     name: Verify Deployment
     needs: deploy
@@ -96,8 +107,7 @@ jobs:
 
       - name: Wait and Check
         run: |
-          echo "⏳ Estabilizando hardware..."
-          sleep 30
-          # Substituído o IP fixo pela variável de ambiente do GitHub
+          echo "⏳ Aguardando inicialização do container..."
+          sleep 60
           echo "🌐 Testando acesso em http://${{ secrets.SERVER_HOST }}:8095"
-          curl -f http://${{ secrets.SERVER_HOST }}:8095 || exit 1
+          curl --retry 15 --retry-delay 10 --retry-all-errors --connect-timeout 10 -f http://${{ secrets.SERVER_HOST }}:8095 || exit 1

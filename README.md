@@ -28,15 +28,35 @@ pip install -r requirements.txt
 ```bash
 streamlit run shadow_app.py
 ```
-## 🏗️ Deploy no Raspberry Pi
-O deploy é automatizado via GitHub Actions. A cada push na branch main:
+## 🏗️ Fluxo de Deploy Automatizado
 
-- **O código passa por um Lint de validação. 
+O deploy deste projeto é 100% automatizado via **GitHub Actions**, garantindo que a versão em produção no Raspberry Pi esteja sempre sincronizada com a branch `main`.
 
-- **Uma imagem Docker ARM64 é gerada e enviada ao GHCR. 
+| Etapa | Ferramenta | Descrição |
+| :--- | :--- | :--- |
+| **Linting** | Super-Linter | Validação estática de sintaxe Python e arquivos YAML. |
+| **Build** | Docker Buildx | Geração de imagem nativa **ARM64** para o Raspberry Pi. |
+| **Registry** | GHCR.io | Armazenamento seguro da imagem no GitHub Container Registry. |
+| **Transporte** | Tailscale + SCP | Transferência segura do `docker-stack.yml` via túnel VPN. |
+| **Orquestração**| Docker Swarm | Atualização do serviço com `stack deploy` e pull da nova imagem. |
 
-- **O deploy é realizado via SSH no Raspberry Pi através da rede Tailscale. 
+### 🚀 Detalhamento do Processo
 
-- **O serviço é exposto via Nginx na porta 8090.
+1.  **Qualidade de Código**: O workflow inicia validando se não existem erros de formatação ou lógica básica que possam quebrar o build.
+2.  **Integração Contínua (CI)**:
+    * Utilizamos o **QEMU** para emular o ambiente ARM64 no Ubuntu do GitHub.
+    * A imagem é buildada e enviada diretamente para o repositório de pacotes do GitHub.
+3.  **Entrega Contínua (CD)**:
+    * **Conexão**: O GitHub estabelece uma ponte segura com o Raspberry Pi via **Tailscale**.
+    * **Sincronização**: O arquivo de configuração local é substituído pela versão do repositório via **SCP**.
+    * **Deploy**: O comando `docker stack deploy` instrui o Swarm a realizar um *rolling update* do dashboard.
+4.  **Exposição e Conectividade**:
+    * **Porta Local**: O container responde na porta `8095`.
+    * **Túnel Externo**: O **Cloudflare Tunnel** gerencia o tráfego de `https://shadow.greencity.net.br/` diretamente para o container, garantindo estabilidade para os WebSockets do Streamlit e eliminando a necessidade de proxies locais complexos.
+5.  **Verificação de Saúde**: Um Health Check automático via `curl` confirma que a aplicação está online antes de finalizar o Job com sucesso.
 
-Desenvolvido por Phasscode - 2026.
+---
+<br>
+<br>
+<p align="center"> Desenvolvido por <strong>Pedro H. Alves de Souza Santos</strong> </p>
+<p align="center"> <em>Engenharia de Software & Energia Sustentável</em> </p>
