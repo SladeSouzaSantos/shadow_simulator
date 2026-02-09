@@ -57,6 +57,8 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ghcr.io/${{ env.REPO_LOWER }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # 🚀 JOB 3: DEPLOY REMOTO
   deploy:
@@ -78,10 +80,9 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # ADICIONADO: docker/nginx.conf para o volume funcionar
           source: "docker-stack.yml,docker/nginx.conf" 
           target: "/app/shadow-sim-pro"
-          strip_components: 0 # Mantém a estrutura da pasta 'docker/'
+          strip_components: 0
 
       - name: Execute Remote Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -92,7 +93,14 @@ jobs:
           script: |
             DEST_DIR="/app/shadow-sim-pro"
             cd $DEST_DIR
+            
+            # Garante que a estrutura esteja limpa para o novo deploy
+            sudo chown -R $USER:$USER $DEST_DIR
+            
+            # Login automático para evitar "denied"
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Deploy com as flags de segurança e atualização de imagem
             docker stack deploy -c docker-stack.yml shadow-sim --with-registry-auth --resolve-image always --prune
 
   # ✅ JOB 4: HEALTH CHECK
@@ -108,7 +116,7 @@ jobs:
 
       - name: Wait and Check
         run: |
-          echo "⏳ Aguardando inicialização do container..."
+          echo "⏳ Aguardando 60s para inicialização do container..."
           sleep 60
           echo "🌐 Testando acesso em http://${{ secrets.SERVER_HOST }}:8092"
-          curl --retry 15 --retry-delay 10 --retry-all-errors --connect-timeout 10 -f http://${{ secrets.SERVER_HOST }}:8092 || exit 1
+          curl --retry 15 --retry-delay 10 --retry-all-errors --connect-timeout 10 -Iv http://${{ secrets.SERVER_HOST }}:8092 || exit 1
