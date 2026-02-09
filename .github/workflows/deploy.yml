@@ -72,14 +72,16 @@ jobs:
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
-      - name: Copy Stack File to Raspberry
+      - name: Copy Files to Raspberry
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-stack.yml"
+          # ADICIONADO: docker/nginx.conf para o volume funcionar
+          source: "docker-stack.yml,docker/nginx.conf" 
           target: "/app/shadow-sim-pro"
+          strip_components: 0 # Mantém a estrutura da pasta 'docker/'
 
       - name: Execute Remote Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -90,7 +92,6 @@ jobs:
           script: |
             DEST_DIR="/app/shadow-sim-pro"
             cd $DEST_DIR
-            # Força o login para garantir acesso às imagens privadas do GHCR
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker stack deploy -c docker-stack.yml shadow-sim --with-registry-auth --resolve-image always --prune
 
@@ -109,5 +110,5 @@ jobs:
         run: |
           echo "⏳ Aguardando inicialização do container..."
           sleep 60
-          echo "🌐 Testando acesso em http://${{ secrets.SERVER_HOST }}:8095"
-          curl --retry 15 --retry-delay 10 --retry-all-errors --connect-timeout 10 -f http://${{ secrets.SERVER_HOST }}:8095 || exit 1
+          echo "🌐 Testando acesso em http://${{ secrets.SERVER_HOST }}:8092"
+          curl --retry 15 --retry-delay 10 --retry-all-errors --connect-timeout 10 -f http://${{ secrets.SERVER_HOST }}:8092 || exit 1

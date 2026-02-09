@@ -51,7 +51,7 @@ O deploy deste projeto é 100% automatizado via **GitHub Actions**, garantindo q
     * **Sincronização**: O arquivo de configuração local é substituído pela versão do repositório via **SCP**.
     * **Deploy**: O comando `docker stack deploy` instrui o Swarm a realizar um *rolling update* do dashboard.
 4.  **Exposição e Conectividade**:
-    * **Porta Local**: O container responde na porta `8095`.
+    * **Porta Local**: O container responde na porta `8092`.
     * **Túnel Externo**: O **Cloudflare Tunnel** gerencia o tráfego de `https://shadow.greencity.net.br/` diretamente para o container, garantindo estabilidade para os WebSockets do Streamlit e eliminando a necessidade de proxies locais complexos.
 5.  **Verificação de Saúde**: Um Health Check automático via `curl` confirma que a aplicação está online antes de finalizar o Job com sucesso.
 
